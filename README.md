@@ -15,7 +15,7 @@ EventSphereX is an event operations and analytics platform that combines ETL, re
 
 ## System Architecture
 
-<img width="800" height="1024" alt="BLOCK DIAGRAM" src="https://github.com/user-attachments/assets/f0fea287-7337-48ad-846d-0607823a746a" />
+<img width="500" height="1024" alt="BLOCK DIAGRAM" src="https://github.com/user-attachments/assets/f0fea287-7337-48ad-846d-0607823a746a" />
 
 
 ## ETL Pipeline

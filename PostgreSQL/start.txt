@@ -1,0 +1,495 @@
+CREATE TABLE ticket_booking (
+    booking_id VARCHAR(20),
+    user_id BIGINT,
+    event_id VARCHAR(20),
+    ticket_type VARCHAR(50),
+    booking_time TIMESTAMP,
+    seat_zone VARCHAR(50),
+    ticket_price NUMERIC(10,2),
+    booking_status VARCHAR(30),
+    payment_mode VARCHAR(30)
+);
+
+CREATE TABLE payment_transactions (
+    transaction_id VARCHAR(20),
+    booking_id VARCHAR(20),
+    transaction_amount NUMERIC(10,2),
+    transaction_status VARCHAR(30),
+    gateway_response_time FLOAT,
+    failure_code INT,
+    timestamp TIMESTAMP
+);
+
+CREATE TABLE crowd_tracking (
+    crowd_event_id VARCHAR(20),
+    user_id BIGINT,
+    zone_id VARCHAR(20),
+    entry_time TIMESTAMP,
+    exit_time TIMESTAMP,
+    crowd_density FLOAT,
+    heatmap_score FLOAT
+);
+
+CREATE TABLE entry_gate_scans (
+    scan_id VARCHAR(20),
+    gate_id VARCHAR(20),
+    ticket_id VARCHAR(20),
+    scan_time TIMESTAMP,
+    validation_status VARCHAR(20),
+    queue_time INT,
+    security_flag BOOLEAN
+);
+
+CREATE TABLE food_sales (
+    sale_id VARCHAR(20),
+    stall_id VARCHAR(20),
+    product_category VARCHAR(50),
+    quantity INT,
+    revenue NUMERIC(10,2),
+    wait_time INT,
+    timestamp TIMESTAMP
+);
+
+CREATE TABLE event_app_logs (
+    activity_id VARCHAR(20),
+    user_id BIGINT,
+    screen_name VARCHAR(100),
+    session_duration INT,
+    click_count INT,
+    crash_flag BOOLEAN,
+    timestamp TIMESTAMP
+);
+
+CREATE TABLE incident_logs (
+    incident_id VARCHAR(20),
+    zone_id VARCHAR(20),
+    incident_type VARCHAR(50),
+    severity_level VARCHAR(20),
+    response_time INT,
+    resolution_status VARCHAR(20),
+    timestamp TIMESTAMP
+);
+CREATE SCHEMA IF NOT EXISTS silver;
+CREATE SCHEMA IF NOT EXISTS gold;
+
+ALTER TABLE public.ticket_booking SET SCHEMA silver;
+
+ALTER TABLE public.payment_transactions SET SCHEMA silver;
+
+ALTER TABLE public.crowd_tracking SET SCHEMA silver;
+
+ALTER TABLE public.entry_gate_scans SET SCHEMA silver;
+
+ALTER TABLE public.food_sales SET SCHEMA silver;
+
+ALTER TABLE public.event_app_logs SET SCHEMA silver;
+
+ALTER TABLE public.incident_logs SET SCHEMA silver;
+
+SELECT COUNT(*) FROM ticket_booking;
+SELECT COUNT(*) FROM payment_transactions;
+SELECT COUNT(*) FROM crowd_tracking;
+SELECT COUNT(*) FROM entry_gate_scans;
+SELECT COUNT(*) FROM food_sales;
+SELECT COUNT(*) FROM event_app_logs;
+SELECT COUNT(*) FROM incident_logs;
+
+#primary key
+ALTER TABLE silver.ticket_booking
+ADD PRIMARY KEY (booking_id);
+ALTER TABLE silver.payment_transactions
+ADD PRIMARY KEY (transaction_id);
+ALTER TABLE silver.crowd_tracking
+ADD PRIMARY KEY (crowd_event_id);
+ALTER TABLE silver.entry_gate_scans
+ADD PRIMARY KEY (scan_id);
+ALTER TABLE silver.food_sales
+ADD PRIMARY KEY (sale_id);
+ALTER TABLE silver.event_app_logs
+ADD PRIMARY KEY (activity_id);
+ALTER TABLE silver.incident_logs
+ADD PRIMARY KEY (incident_id);
+
+#create index
+CREATE INDEX idx_booking_time
+ON silver.ticket_booking(booking_time);
+CREATE INDEX idx_event_id
+ON silver.ticket_booking(event_id);
+CREATE INDEX idx_user_id_booking
+ON silver.ticket_booking(user_id);
+CREATE INDEX idx_transaction_booking
+ON silver.payment_transactions(booking_id);
+CREATE INDEX idx_zone_id
+ON silver.crowd_tracking(zone_id);
+CREATE INDEX idx_crowd_user
+ON silver.crowd_tracking(user_id);
+CREATE INDEX idx_gate_id
+ON silver.entry_gate_scans(gate_id);
+CREATE INDEX idx_sale_stall
+ON silver.food_sales(stall_id);
+CREATE INDEX idx_app_user
+ON silver.event_app_logs(user_id);
+CREATE INDEX idx_incident_zone
+ON silver.incident_logs(zone_id);
+#verify
+SELECT
+tablename,
+indexname
+FROM pg_indexes
+WHERE schemaname='silver';
+
+ALTER TABLE silver.payment_transactions
+ADD CONSTRAINT fk_booking
+FOREIGN KEY (booking_id)
+REFERENCES silver.ticket_booking(booking_id);
+
+#PHASE 2 - DATA ENGINEERING
+#ETL PIPELINES
+1.Ticket Booking ETL
+CREATE TABLE gold.ticket_booking_summary AS
+SELECT
+    event_id,
+    COUNT(*) AS total_bookings,
+    SUM(ticket_price) AS revenue
+FROM silver.ticket_booking
+GROUP BY event_id;
+2.Payment Transactions ETL
+CREATE TABLE gold.payment_summary AS
+SELECT
+    transaction_status,
+    COUNT(*) AS total_transactions,
+    AVG(gateway_response_time) AS avg_response_time,
+    SUM(transaction_amount) AS total_amount
+FROM silver.payment_transactions
+GROUP BY transaction_status;
+3.Crowd Tracking ETL
+CREATE TABLE gold.crowd_summary AS
+SELECT
+    zone_id,
+    AVG(crowd_density) AS avg_density,
+    AVG(heatmap_score) AS avg_heatmap
+FROM silver.crowd_tracking
+GROUP BY zone_id;
+4.Entry Gate Scans ETL
+CREATE TABLE gold.gate_summary AS
+SELECT
+    gate_id,
+    COUNT(*) AS total_scans,
+    AVG(queue_time) AS avg_queue_time
+FROM silver.entry_gate_scans
+GROUP BY gate_id;
+5.Food Sales ETL
+CREATE TABLE gold.food_sales_summary AS
+SELECT
+    product_category,
+    SUM(quantity) AS total_quantity,
+    SUM(revenue) AS total_revenue,
+    AVG(wait_time) AS avg_wait_time
+FROM silver.food_sales
+GROUP BY product_category;
+6.Event App Logs ETL
+CREATE TABLE gold.app_activity_summary AS
+SELECT
+    screen_name,
+    COUNT(*) AS total_visits,
+    AVG(session_duration) AS avg_duration,
+    SUM(click_count) AS total_clicks
+FROM silver.event_app_logs
+GROUP BY screen_name;
+7.Incident Logs ETL
+CREATE TABLE gold.incident_summary AS
+SELECT
+    zone_id,
+    incident_type,
+    COUNT(*) AS incident_count,
+    AVG(response_time) AS avg_response_time
+FROM silver.incident_logs
+GROUP BY zone_id, incident_type;
+
+#EVENT STREAMS (Views)
+1.Ticket Booking Stream
+CREATE OR REPLACE VIEW gold.v_ticket_booking_stream AS
+SELECT *
+FROM silver.ticket_booking
+ORDER BY booking_time DESC;
+2.Payment Stream
+CREATE OR REPLACE VIEW gold.v_payment_stream AS
+SELECT *
+FROM silver.payment_transactions
+ORDER BY timestamp DESC;
+3.Crowd Stream
+CREATE OR REPLACE VIEW gold.v_crowd_stream AS
+SELECT *
+FROM silver.crowd_tracking
+ORDER BY entry_time DESC;
+4.Entry Gate Stream
+CREATE OR REPLACE VIEW gold.v_gate_stream AS
+SELECT *
+FROM silver.entry_gate_scans
+ORDER BY scan_time DESC;
+5.Food Sales Stream
+CREATE OR REPLACE VIEW gold.v_food_sales_stream AS
+SELECT *
+FROM silver.food_sales
+ORDER BY timestamp DESC;
+6.App Activity Stream
+CREATE OR REPLACE VIEW gold.v_app_activity_stream AS
+SELECT *
+FROM silver.event_app_logs
+ORDER BY timestamp DESC;
+7.Incident Stream
+CREATE OR REPLACE VIEW gold.v_incident_stream AS
+SELECT *
+FROM silver.incident_logs
+ORDER BY timestamp DESC;
+
+#ANALYTICAL WAREHOUSES
+1.Ticket Booking Warehouse
+CREATE TABLE gold.wh_ticket_booking AS
+SELECT
+    event_id,
+    COUNT(*) total_bookings,
+    SUM(ticket_price) total_revenue,
+    AVG(ticket_price) avg_price
+FROM silver.ticket_booking
+GROUP BY event_id;
+2.Payment Warehouse
+CREATE TABLE gold.wh_payment AS
+SELECT
+    transaction_status,
+    COUNT(*) AS total_transactions,
+    SUM(transaction_amount) AS total_amount,
+    AVG(gateway_response_time) AS avg_gateway_time
+FROM silver.payment_transactions
+GROUP BY transaction_status;
+3.Food Sales Warehouse
+CREATE TABLE gold.wh_food_sales AS
+SELECT
+    product_category,
+    SUM(quantity) AS total_quantity,
+    SUM(revenue) AS total_revenue,
+    AVG(wait_time) AS avg_wait_time
+FROM silver.food_sales
+GROUP BY product_category;
+4.App Activity Warehouse
+CREATE TABLE gold.wh_app_activity AS
+SELECT
+    screen_name,
+    COUNT(*) AS visits,
+    AVG(session_duration) AS avg_session_duration,
+    SUM(click_count) AS total_clicks,
+    SUM(CASE WHEN crash_flag = TRUE THEN 1 ELSE 0 END) AS total_crashes
+FROM silver.event_app_logs
+GROUP BY screen_name;
+5.Incident Warehouse
+CREATE TABLE gold.wh_incidents AS
+SELECT
+    incident_type,
+    severity_level,
+    COUNT(*) AS total_incidents,
+    AVG(response_time) AS avg_response_time
+FROM silver.incident_logs
+GROUP BY incident_type, severity_level;
+6.Crowd tracking
+CREATE TABLE gold.wh_crowd_tracking AS
+SELECT
+    zone_id,
+    COUNT(*) AS visitors,
+    AVG(crowd_density) AS avg_density,
+    MAX(crowd_density) AS peak_density,
+    AVG(heatmap_score) AS avg_heatmap
+FROM silver.crowd_tracking
+GROUP BY zone_id;
+7.ENTRY GATE WAREHOUSE
+CREATE TABLE gold.wh_entry_gate AS
+SELECT
+    gate_id,
+    COUNT(*) AS total_scans,
+    AVG(queue_time) AS avg_wait_time,
+    MAX(queue_time) AS peak_wait_time
+FROM silver.entry_gate_scans
+GROUP BY gate_id;
+
+#PHASE 3 Analytics Challenges
+#Challenge A: Ticketing Analytics
+1.Peak Booking Timings
+SELECT
+    DATE_TRUNC('hour', booking_time) AS booking_hour,
+    COUNT(*) AS total_bookings
+FROM silver.ticket_booking
+GROUP BY booking_hour
+ORDER BY total_bookings DESC;
+2.Booking Failure Analysis
+SELECT
+    booking_status,
+    COUNT(*) AS total_bookings
+FROM silver.ticket_booking
+GROUP BY booking_status;
+3.Dynamic Pricing Trends
+SELECT
+    event_id,
+    AVG(ticket_price) AS avg_price
+FROM silver.ticket_booking
+GROUP BY event_id
+ORDER BY avg_price DESC;
+4.Most Popular Seat Zones
+SELECT
+    seat_zone,
+    COUNT(*) AS bookings
+FROM silver.ticket_booking
+GROUP BY seat_zone
+ORDER BY bookings DESC;
+5.Revenue Optimization
+SELECT
+    event_id,
+    COUNT(*) AS tickets_sold,
+    SUM(ticket_price) AS revenue
+FROM silver.ticket_booking
+GROUP BY event_id
+ORDER BY revenue DESC;
+
+#Challenge B: Crowd Intelligence
+1.Most Crowded Zones
+SELECT
+    zone_id,
+    AVG(crowd_density) AS avg_density
+FROM silver.crowd_tracking
+GROUP BY zone_id
+ORDER BY avg_density DESC;
+2.Crowd Heatmaps
+SELECT
+    zone_id,
+    AVG(heatmap_score) AS avg_heatmap
+FROM silver.crowd_tracking
+GROUP BY zone_id
+ORDER BY avg_heatmap DESC;
+3.Entry Exit Bottlenecks
+SELECT
+    zone_id,
+    AVG(
+        EXTRACT(EPOCH FROM (exit_time - entry_time))
+    ) AS avg_time_spent
+FROM silver.crowd_tracking
+GROUP BY zone_id
+ORDER BY avg_time_spent DESC;
+4.High Risk Congestion Areas
+SELECT
+    zone_id,
+    MAX(crowd_density) AS peak_density
+FROM silver.crowd_tracking
+GROUP BY zone_id
+ORDER BY peak_density DESC;
+5.Crowd Movement Trends
+SELECT
+    DATE(entry_time) AS day,
+    COUNT(*) AS visitors
+FROM silver.crowd_tracking
+GROUP BY day
+ORDER BY day;
+
+#Challenge C: Payment Analytics
+1.Payment Failure Spikes
+SELECT
+    transaction_status,
+    COUNT(*) AS transactions
+FROM silver.payment_transactions
+GROUP BY transaction_status;
+2.Gateway Latency Analysis
+SELECT
+    AVG(gateway_response_time) AS avg_latency
+FROM silver.payment_transactions;
+3.Transaction Throughput
+SELECT
+    DATE(timestamp) AS day,
+    COUNT(*) AS transactions
+FROM silver.payment_transactions
+GROUP BY day
+ORDER BY day;
+4.Peak Payment Load
+SELECT
+    DATE_TRUNC('hour', timestamp) AS payment_hour,
+    COUNT(*) AS payments
+FROM silver.payment_transactions
+GROUP BY payment_hour
+ORDER BY payments DESC;
+5.Refund Trends
+SELECT
+    failure_code,
+    COUNT(*) AS occurrences
+FROM silver.payment_transactions
+WHERE transaction_status <> 'Success'
+GROUP BY failure_code
+ORDER BY occurrences DESC;
+
+#Challenge D: Event Engagement Analytics
+1.App Usage Trends
+SELECT
+    DATE(timestamp) AS day,
+    COUNT(*) AS activities
+FROM silver.event_app_logs
+GROUP BY day
+ORDER BY day;
+2.Most Active Screens
+SELECT
+    screen_name,
+    COUNT(*) AS visits
+FROM silver.event_app_logs
+GROUP BY screen_name
+ORDER BY visits DESC;
+3.Session Engagement
+SELECT
+    screen_name,
+    AVG(session_duration) AS avg_duration
+FROM silver.event_app_logs
+GROUP BY screen_name
+ORDER BY avg_duration DESC;
+4.Crash Analytics
+SELECT
+    crash_flag,
+    COUNT(*) AS crashes
+FROM silver.event_app_logs
+GROUP BY crash_flag;
+5.User Retention Patterns
+SELECT
+    user_id,
+    COUNT(*) AS visits
+FROM silver.event_app_logs
+GROUP BY user_id
+ORDER BY visits DESC;
+
+#Challenge E: Food & Merchandise Analytics
+1.Peak Stall Demand
+SELECT
+    stall_id,
+    SUM(quantity) AS total_items
+FROM silver.food_sales
+GROUP BY stall_id
+ORDER BY total_items DESC;
+2.Wait Time Analysis
+SELECT
+    stall_id,
+    AVG(wait_time) AS avg_wait
+FROM silver.food_sales
+GROUP BY stall_id
+ORDER BY avg_wait DESC;
+3.Revenue Hotspots
+SELECT
+    stall_id,
+    SUM(revenue) AS total_revenue
+FROM silver.food_sales
+GROUP BY stall_id
+ORDER BY total_revenue DESC;
+4.Product Trends
+SELECT
+    product_category,
+    SUM(quantity) AS total_sales
+FROM silver.food_sales
+GROUP BY product_category
+ORDER BY total_sales DESC;
+5.Inventory Optimization
+SELECT
+    product_category,
+    AVG(quantity) AS avg_quantity
+FROM silver.food_sales
+GROUP BY product_category
+ORDER BY avg_quantity DESC;

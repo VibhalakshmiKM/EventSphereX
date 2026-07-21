@@ -1,0 +1,131 @@
+Fact_Ticket_Booking
+
+CREATE TABLE gold.fact_ticket_booking AS
+SELECT
+    booking_id,
+    user_id,
+    event_id,
+    booking_time,
+    seat_zone,
+    ticket_type,
+    ticket_price,
+    booking_status,
+    payment_mode
+FROM silver.ticket_booking;
+
+Fact_Payment_Transactions
+
+CREATE TABLE gold.fact_payment_transactions AS
+SELECT
+    transaction_id,
+    booking_id,
+    transaction_amount,
+    transaction_status,
+    gateway_response_time,
+    failure_code,
+    timestamp
+FROM silver.payment_transactions;
+
+Fact_Crowd_Tracking
+
+CREATE TABLE gold.fact_crowd_tracking AS
+SELECT
+    crowd_event_id,
+    user_id,
+    zone_id,
+    entry_time,
+    exit_time,
+    crowd_density,
+    heatmap_score
+FROM silver.crowd_tracking;
+
+Fact_Gate_Scans
+
+CREATE TABLE gold.fact_gate_scans AS
+SELECT
+    scan_id,
+    gate_id,
+    ticket_id,
+    scan_time,
+    validation_status,
+    queue_time,
+    security_flag
+FROM silver.entry_gate_scans;
+
+Fact_Food_Sales
+
+CREATE TABLE gold.fact_food_sales AS
+SELECT
+    sale_id,
+    stall_id,
+    product_category,
+    quantity,
+    revenue,
+    wait_time,
+    timestamp
+FROM silver.food_sales;
+
+Fact_App_Activity
+
+CREATE TABLE gold.fact_app_activity AS
+SELECT
+    activity_id,
+    user_id,
+    screen_name,
+    session_duration,
+    click_count,
+    crash_flag,
+    timestamp
+FROM silver.event_app_logs;
+
+Fact_Incidents
+
+CREATE TABLE gold.fact_incidents AS
+SELECT
+    incident_id,
+    zone_id,
+    incident_type,
+    severity_level,
+    response_time,
+    resolution_status,
+    timestamp
+FROM silver.incident_logs;
+
+
+Dimension Tables
+
+Dim Date
+CREATE TABLE gold.dim_date AS
+SELECT DISTINCT
+       DATE(booking_time) AS date_key,
+       EXTRACT(YEAR FROM booking_time) AS year,
+       EXTRACT(MONTH FROM booking_time) AS month,
+       EXTRACT(DAY FROM booking_time) AS day
+FROM silver.ticket_booking;
+Dim Zone
+CREATE TABLE gold.dim_zone AS
+SELECT DISTINCT zone_id
+FROM (
+    SELECT zone_id FROM silver.crowd_tracking
+    UNION
+    SELECT zone_id FROM silver.incident_logs
+) t;
+Dim Gate
+CREATE TABLE gold.dim_gate AS
+SELECT DISTINCT gate_id
+FROM silver.entry_gate_scans;
+Dim Product
+CREATE TABLE gold.dim_product AS
+SELECT DISTINCT product_category
+FROM silver.food_sales;
+Dim Screen
+CREATE TABLE gold.dim_screen AS
+SELECT DISTINCT screen_name
+FROM silver.event_app_logs;
+Dim Event
+CREATE TABLE gold.dim_event AS
+SELECT DISTINCT
+       event_id,
+       ticket_type,
+       seat_zone
+FROM silver.ticket_booking;

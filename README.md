@@ -15,24 +15,7 @@ EventSphereX is an event operations and analytics platform that combines ETL, re
 
 ## System Architecture
 
-CSV Data
-→ Python/Pandas ETL
-→ PostgreSQL
-→ Kafka Producer
-→ Kafka Topics
-→ FastAPI Kafka Consumer
-→ REST APIs
-→ React Dashboard
 
-PostgreSQL
-→ Power BI Dashboards
-
-Apache Airflow
-→ event_pipeline DAG
-→ run_kafka_stream
-→ airflow_producer.py
-→ Kafka Producer
-→ Kafka Topics
 
 ## ETL Pipeline
 

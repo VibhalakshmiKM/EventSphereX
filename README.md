@@ -2,19 +2,19 @@
 
 EventSphereX is an event operations and analytics platform that combines ETL, real-time Kafka streaming, REST APIs, operational dashboards, workflow automation, and business intelligence.
 
-# Problem Statement
+## Problem Statement
 
 Large-scale events generate data from multiple areas such as ticketing, payments, crowd movement, gate operations, food sales, app activity, and emergencies. Managing these data sources separately makes real-time monitoring and operational decision-making difficult. EventSphereX addresses this problem by integrating these data sources into a unified platform for real-time monitoring, automated alerts, workflow management, and business analytics.
 
-# Objectives
+## Objectives
 
-To integrate data from multiple event sources into one platform.
-To process and stream event data in near real time.
-To monitor crowd movement and operational conditions.
-To detect critical events such as overcrowding, payment failures, and emergencies.
-To automate alerts and operational workflows.
-To provide interactive dashboards for event monitoring.
-To support data-driven event management and decision-making.
+- To integrate data from multiple event sources into one platform.
+- To process and stream event data in near real time.
+- To monitor crowd movement and operational conditions.
+- To detect critical events such as overcrowding, payment failures, and emergencies.
+- To automate alerts and operational workflows.
+- To provide interactive dashboards for event monitoring.
+- To support data-driven event management and decision-making.
 
 ## Tech Stack
 
